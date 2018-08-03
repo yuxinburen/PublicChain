@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 	"math/big"
+	"strconv"
 )
 
 type BlockChain struct {
@@ -77,6 +78,36 @@ func (chain *BlockChain) PrintChains() {
 //BlockChain的迭代器方法,根据迭代器可以迭代里面的数据
 func (chain *BlockChain) Iterator() *BlockChainIterator {
 	return &BlockChainIterator{chain.DB, chain.Tip}
+}
+
+//Model层的转账交易
+func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []string) {
+	//构建交易对象
+	//将交易构建到数据区块中
+	//将带有交易信息的数据保存到数据库中
+
+	//1.创建交易对象
+	var txs []*Transaction
+	amountInt, _ := strconv.ParseInt(amountArgs[0], 10, 64)
+	tx := NewSimpleTransaction(fromArgs[0], toArgs[0], amountInt)
+	txs = append(txs, tx)
+
+	//2.构造新的区块
+	newBlock := new(Block)
+	err := chain.DB.View(func(tx *bolt.Tx) error {
+		bk := tx.Bucket([]byte(BlockBucketName))
+		if bk != nil {
+			//读取数据库
+			bytes := bk.Get(chain.Tip)
+			
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
 }
 
 //create a blockchain,nclude genesis block

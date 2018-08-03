@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"log"
+	"encoding/json"
 )
 
 //int类型的数值转换成16进制表示
@@ -15,4 +16,14 @@ func IntToHex(num int64) []byte {
 		log.Panic(err)
 	}
 	return buff.Bytes()
+}
+
+//json格式的数据转换成字符数组
+func JSONToArray(jsonData string) []string {
+	var arr []string
+	err := json.Unmarshal([]byte(jsonData), arr)
+	if err != nil {
+		log.Panic(err)
+	}
+	return arr
 }
