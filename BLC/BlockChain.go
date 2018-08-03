@@ -99,7 +99,7 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 		if bk != nil {
 			//读取数据库
 			bytes := bk.Get(chain.Tip)
-			
+
 		}
 		return nil
 	})
@@ -107,7 +107,6 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 	if err != nil {
 		log.Panic(err)
 	}
-
 }
 
 //create a blockchain,nclude genesis block
