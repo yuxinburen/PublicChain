@@ -63,7 +63,7 @@ func (work *ProfOfWork) PrepareData(nonce int64) []byte {
 		IntToHex(work.Block.Height),
 		work.Block.PreBlockHash,
 		IntToHex(work.Block.TimeStamp),
-		work.Block.Data,
+		work.Block.HashTransactions(),
 		IntToHex(nonce),
 		IntToHex(TargetBit),
 	}, []byte{})

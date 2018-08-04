@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"log"
+	"crypto/sha1"
 )
 
 //创建一个block结构体
@@ -62,4 +63,18 @@ func Deserialize(blockBytes []byte) *Block {
 		log.Panic(err)
 	}
 	return block
+}
+
+//将区块内的所有的交易都hash化
+func (block *Block) HashTransactions() []byte {
+
+	//1.创建一个二维数组,存储每笔交易的txID
+	var txsHashes [][]byte
+	//2.遍历
+	for _, tx := range block.Txs {
+		txsHashes = append(txsHashes, tx.TxID)
+	}
+	//生成hash
+	hash := sha1.Sum(bytes.Join(txsHashes, []byte{}))
+	return hash[:]
 }

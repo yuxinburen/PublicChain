@@ -15,39 +15,6 @@ type BlockChain struct {
 	Tip []byte   //存储区块中最后一个块的hash值
 }
 
-//向区块链中保存数据
-func (chain *BlockChain) AddBlockToBlockChain(txs []*Transaction) {
-	//思路：
-	//1.根据要保存的数据构建一个blockchain对象
-	//2.添加到数据库中
-	//3.修改数据库的最新的hash的值
-	err := chain.DB.Update(func(tx *bolt.Tx) error {
-		bk := tx.Bucket([]byte(BlockBucketName))
-
-		if bk != nil {
-			//获取chain的tip就是最新的hash,从数据库中读取最后一个block:hash,height
-			blockBytes := bk.Get(chain.Tip)
-			lastBlock := Deserialize(blockBytes)
-			lastBlockHeight := lastBlock.Height
-			//构造一个新的区块
-			newBlock := NewBlock(txs, lastBlock.Hash, lastBlockHeight+1)
-			//存入到数据库中
-			err := bk.Put(newBlock.Hash, newBlock.Serialize())
-			if err != nil {
-				log.Panic(err)
-			}
-			//更新数据库中的存储最新hash值的l的对应的值
-			bk.Put([]byte("l"), newBlock.Hash)
-			//更新BlockChain对象的最新的tips
-			chain.Tip = newBlock.Hash
-		}
-		return nil
-	})
-	if err != nil {
-		log.Panic(err)
-	}
-}
-
 //打印区块数据
 func (chain *BlockChain) PrintChains() {
 	//打开数据库
@@ -67,14 +34,14 @@ func (chain *BlockChain) PrintChains() {
 		for _, tx := range block.Txs {
 
 			fmt.Printf("\t\t交易ID：%x\n", tx.TxID) //[]byte --> 0x...
-			fmt.Printf("\t\tVins:")
+			fmt.Printf("\t\tVins:\n")
 			for _, in := range tx.Vins { //每一个TxInput：TxId,vout,解锁脚本
 				fmt.Printf("\t\t\tTxID：%x\n", in.TxID)
 				fmt.Printf("\t\t\tVout：%x\n", in.Vout)
 				fmt.Printf("\t\t\tScriptSiq：%x\n", in.ScriptSip)
 			}
 
-			fmt.Printf("\t\tVouts:")
+			fmt.Printf("\t\tVouts:\n")
 			for _, out := range tx.Vouts {
 				fmt.Printf("\t\t\tValue:%d\n", out.Value)
 				fmt.Printf("\t\t\tScriptPubKey:%s\n", out.ScriptPubKey)
@@ -117,8 +84,23 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 			//读取数据库
 			bytes := bk.Get(chain.Tip)
 			lastBlock := Deserialize(bytes)
-
 			newBlock = NewBlock(txs, lastBlock.Hash, lastBlock.Height+1)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+
+	//将构造的新区块保存到数据库中
+	err = chain.DB.Update(func(tx *bolt.Tx) error {
+		bk := tx.Bucket([]byte(BlockBucketName))
+		if bk != nil {
+			//向数据库中存入数据
+			bk.Put(newBlock.Hash, newBlock.Serialize())
+			//更新数据库中的表示最新的hash的值的标志数据
+			bk.Put([]byte("l"), newBlock.Hash)
+			chain.Tip = newBlock.Hash
 		}
 		return nil
 	})
@@ -126,6 +108,7 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 	if err != nil {
 		log.Panic(err)
 	}
+
 }
 
 //create a blockchain,nclude genesis block
@@ -162,7 +145,7 @@ func CreateBlockChainWithGenesisBlock(address string) *BlockChain {
 	}
 
 	//数据库不存在
-	fmt.Printf("数据库不存在...")
+	fmt.Printf("数据库不存在...\n")
 	//1.创建数据库
 	//2.创建创世区块
 	//3.存储到数据库中
@@ -258,5 +241,38 @@ func GetBlockChainObject() *BlockChain {
 	} else {
 		fmt.Printf("数据库不存在,无法获取BlockChain对象\n")
 		return nil
+	}
+}
+
+//向区块链中保存数据
+func (chain *BlockChain) AddBlockToBlockChain(txs []*Transaction) {
+	//思路：
+	//1.根据要保存的数据构建一个blockchain对象
+	//2.添加到数据库中
+	//3.修改数据库的最新的hash的值
+	err := chain.DB.Update(func(tx *bolt.Tx) error {
+		bk := tx.Bucket([]byte(BlockBucketName))
+
+		if bk != nil {
+			//获取chain的tip就是最新的hash,从数据库中读取最后一个block:hash,height
+			blockBytes := bk.Get(chain.Tip)
+			lastBlock := Deserialize(blockBytes)
+			lastBlockHeight := lastBlock.Height
+			//构造一个新的区块
+			newBlock := NewBlock(txs, lastBlock.Hash, lastBlockHeight+1)
+			//存入到数据库中
+			err := bk.Put(newBlock.Hash, newBlock.Serialize())
+			if err != nil {
+				log.Panic(err)
+			}
+			//更新数据库中的存储最新hash值的l的对应的值
+			bk.Put([]byte("l"), newBlock.Hash)
+			//更新BlockChain对象的最新的tips
+			chain.Tip = newBlock.Hash
+		}
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
 	}
 }

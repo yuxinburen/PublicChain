@@ -1,4 +1,4 @@
-package Public_Chain
+package main
 
 import (
 	"Public_Chain/BLC"

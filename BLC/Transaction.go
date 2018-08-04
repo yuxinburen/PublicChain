@@ -1,11 +1,11 @@
 package BLC
 
 import (
-	"encoding/hex"
 	"bytes"
 	"encoding/gob"
 	"log"
 	"crypto/sha256"
+	"encoding/hex"
 )
 
 //转账交易中的交易对象
@@ -21,7 +21,7 @@ func (transaction *Transaction) SetID() {
 	var buf bytes.Buffer
 	encoder := gob.NewEncoder(&buf)
 	err := encoder.Encode(transaction)
-	if err == nil {
+	if err != nil {
 		log.Panic(err)
 	}
 	//byte[] --> hash
@@ -40,7 +40,7 @@ func NewSimpleTransaction(from, to string, amount int64) *Transaction {
 	/*
 		创世区块中交易ID：c16d3ad93450cd532dcd7ef53d8f396e46b2e59aa853ad44c284314c7b9db1b4
  	*/
-	idBytes, _ := hex.DecodeString("c16d3ad93450cd532dcd7ef53d8f396e46b2e59aa853ad44c284314c7b9db1b4")
+	idBytes, _ := hex.DecodeString("2a2303271c75c8b9bae50d73404cf36f15b3ebb0abee9a8cc4132df57c901c1f")
 	txInput := &TxInput{idBytes, 1, from}
 	txInputs = append(txInputs, txInput)
 
