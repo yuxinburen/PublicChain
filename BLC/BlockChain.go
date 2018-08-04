@@ -276,3 +276,9 @@ func (chain *BlockChain) AddBlockToBlockChain(txs []*Transaction) {
 		log.Panic(err)
 	}
 }
+
+//根据用户输入的地址查询给定的地址账户的余额
+func (chain *BlockChain) GetBalance(s string) int {
+	fmt.Printf("查询账户余额功能...")
+	return 0
+}

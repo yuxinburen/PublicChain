@@ -22,6 +22,7 @@ func (cli *CLI) Run() {
 	//addBlockCmd := flag.NewFlagSet("addblock", flag.ExitOnError)
 	sendBlockCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
+	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 
 	//2.设置命令后的参数对象
 	flagCreateBlockChainData := createBlockChainCmd.String("data", "GensisisBlock", "创世区块的信息")
@@ -30,6 +31,8 @@ func (cli *CLI) Run() {
 	flagSendFromData := sendBlockCmd.String("from", "", "转账源地址")
 	flagSendToData := sendBlockCmd.String("to", "", "入账地址")
 	flagSendAmountData := sendBlockCmd.String("amount", "", "转账金额")
+	//余额功能参数接收
+	flagGetBalanceData := getBalanceCmd.String("address", "", "账户地址")
 
 	var err error
 	//解析用户的意图命令
@@ -40,6 +43,8 @@ func (cli *CLI) Run() {
 		err = sendBlockCmd.Parse(os.Args[2:])
 	case "printchain": //将区块链数据从数据库中查询出来并打印
 		err = printChainCmd.Parse(os.Args[2:])
+	case "getbalance":
+		err = getBalanceCmd.Parse(os.Args[2:])
 	default:
 		printUsage()
 		os.Exit(1)
@@ -89,6 +94,16 @@ func (cli *CLI) Run() {
 	if printChainCmd.Parsed() {
 		cli.PrintChains()
 	}
+
+	//查询账户余额
+	if getBalanceCmd.Parsed() {
+		if *flagGetBalanceData == "" {
+			fmt.Printf("请输入要查询的账户地址.\n")
+			os.Exit(1)
+		}
+		cli.GetBalance(*flagGetBalanceData)
+	}
+
 }
 
 //检查用户参数是否合法
@@ -102,9 +117,10 @@ func isValidArgs() {
 //打印程序用法说明
 func printUsage() {
 	fmt.Printf("Usage:\n")
-	fmt.Printf("\tcreateblockchain -data DATA --创建创世区块\n")
+	fmt.Printf("\tcreateblockchain -data Data --创建创世区块\n")
 	fmt.Printf("\tsend -from from -to to -amount amount --转账给他人\n")
 	fmt.Printf("\tprintchain --打印所有区块\n")
+	fmt.Printf("\tgetbalance -address Data --查询账户余额\n")
 }
 
 //创建区块链
@@ -148,4 +164,17 @@ func (cli *CLI) AddBlockToBlockChain(txs []*Transaction) {
 		os.Exit(1)
 	}
 	blockChain.AddBlockToBlockChain(txs)
+}
+
+//查询账户地址的余额数据
+func (cli *CLI) GetBalance(address string) {
+
+	blockChain := GetBlockChainObject()
+	if blockChain == nil {
+		fmt.Printf("没有数据库，无法查询账户余额.请先创建区块链数据库.\n")
+		os.Exit(1)
+	}
+	defer blockChain.DB.Close()
+	totalBalance := blockChain.GetBalance(address)
+	fmt.Printf("账户%s的余额为:%d\n", address, totalBalance)
 }
