@@ -8,6 +8,7 @@ import (
 	"time"
 	"math/big"
 	"strconv"
+	"encoding/hex"
 )
 
 type BlockChain struct {
@@ -278,7 +279,97 @@ func (chain *BlockChain) AddBlockToBlockChain(txs []*Transaction) {
 }
 
 //根据用户输入的地址查询给定的地址账户的余额
-func (chain *BlockChain) GetBalance(s string) int {
+func (chain *BlockChain) GetBalance(address string) int64 {
 	fmt.Printf("查询账户余额功能...")
-	return 0
+
+	unSpentUTXOs := chain.UnSpent(address)
+
+	var total int64
+	for _, utxo := range unSpentUTXOs {
+		total += utxo.Output.Value
+	}
+	return total
+}
+
+//计算指定账户未花费的交易输出，可能是多笔，所以是一个集合
+func (blockChain *BlockChain) UnSpent(address string) []*UTXO {
+	//思路:
+	//1.遍历数据库的每个block中的txs
+	//2.进而遍历每个交易
+	//Inputs: 将数据，纪录为已经花费
+	//Outputs:每个output
+
+	//需要用到的几个变量
+	var unSpentUTXOs []*UTXO
+	//已经花费掉的信息存储容器
+	spentTxOutputMap := make(map[string][]int) //map[TxID] = []int{vout}
+
+	iterator := blockChain.Iterator()
+
+	for {
+		//获取到每一块0
+		block := iterator.Next()
+
+		//遍历block的交易信息
+		for _, tx := range block.Txs {
+
+			//遍历其中的一条tx：TxID，Vins，Vouts
+			//遍历所有的TxInput
+			if !tx.IsCoinBaseTransaction() { //tx不是CoinBase交易,遍历TxInput
+				for _, texInput := range tx.Vins {
+					//txInput-->TxInput
+					if texInput.UnlockWithAddress(address) {
+						//txInput的解锁脚本(用户名)如果和要查询的余额的用户名相同
+						key := hex.EncodeToString(tx.TxID)
+						spentTxOutputMap[key] = append(spentTxOutputMap[key], texInput.Vout)
+						/**
+						**map[key] --> value
+						**map[key] --> []int
+						 */
+					}
+				}
+			}
+
+		outputs:
+		//遍历所有的TxOutput
+			for index, txOutput := range tx.Vouts {
+				if txOutput.UnlockWithAddress(address) {
+					if len(spentTxOutputMap) != 0 {
+						var isSpentOutput bool //false
+						//遍历map
+						for txID, indexArray := range spentTxOutputMap {
+							//遍历 记录已经花费的下标的数组
+							for _, i := range indexArray {
+								if i == index && hex.EncodeToString(tx.TxID) == txID {
+									isSpentOutput = true //标记当前的txOutput是否已经花费
+									continue outputs
+								}
+							}
+						}
+
+						if !isSpentOutput {
+							//unSpentTxOutput == append(unSpentTxOutput, txOutput)
+							//根据未花费的output,创建utxo对象-->数组
+							utxo := &UTXO{tx.TxID, index, txOutput}
+							unSpentUTXOs = append(unSpentUTXOs, utxo)
+						}
+					} else {
+						//如果map长度为0,证明还没有花费记录,output无需判断
+						//unSpentTxOutput = append(unSpentTxOutput,txOutput)
+						utxo := &UTXO{tx.TxID, index, txOutput}
+						unSpentUTXOs = append(unSpentUTXOs, utxo)
+					}
+				}
+			}
+		}
+
+		//3.判断退出
+		hashInt := new(big.Int)
+		hashInt.SetBytes(block.PreBlockHash)
+		if big.NewInt(0).Cmp(hashInt) == 0 {
+			break
+		}
+	}
+
+	return unSpentUTXOs
 }

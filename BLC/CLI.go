@@ -136,6 +136,7 @@ func (cli *CLI) PrintChains() {
 		fmt.Printf("没有blockchain，无法打印任何区块数据\n")
 		os.Exit(1)
 	}
+	defer bc.DB.Close()
 	//调用bc的打印数据的方法
 	bc.PrintChains()
 }
@@ -163,6 +164,7 @@ func (cli *CLI) AddBlockToBlockChain(txs []*Transaction) {
 		fmt.Printf("没有数据库,无法添加新的区块\t")
 		os.Exit(1)
 	}
+	defer blockChain.DB.Close()
 	blockChain.AddBlockToBlockChain(txs)
 }
 

@@ -10,3 +10,5 @@ type UTXO struct {
 	//3.未花费的
 	Output *TxOutput
 }
+
+
