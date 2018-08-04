@@ -11,7 +11,7 @@ import (
 type Block struct {
 	Height       int64
 	PreBlockHash []byte
-	Data         []byte
+	Txs          []*Transaction
 	TimeStamp    int64
 	Hash         []byte
 	//Nonce
@@ -19,11 +19,11 @@ type Block struct {
 }
 
 //step:提供一个函数用于创建一个区块
-func NewBlock(data string, prevBlockHash []byte, height int64) *Block {
+func NewBlock(txs []*Transaction, prevBlockHash []byte, height int64) *Block {
 	//创建区块
 	block := &Block{Height: height,
 		PreBlockHash: prevBlockHash,
-		Data: []byte(data),
+		Txs: txs,
 		TimeStamp: time.Now().Unix(),
 	}
 
@@ -37,8 +37,8 @@ func NewBlock(data string, prevBlockHash []byte, height int64) *Block {
 }
 
 //生成创世区块
-func CreateGenesisBlock(data string) *Block {
-	return NewBlock(data, make([]byte, 32, 32), 0)
+func CreateGenesisBlock(txs []*Transaction) *Block {
+	return NewBlock(txs, make([]byte, 32, 32), 0)
 }
 
 //区块的序列化方法：将对象数据序列化后编程数组形式

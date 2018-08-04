@@ -16,7 +16,7 @@ type BlockChain struct {
 }
 
 //向区块链中保存数据
-func (chain *BlockChain) AddBlockToBlockChain(data string) {
+func (chain *BlockChain) AddBlockToBlockChain(txs []*Transaction) {
 	//思路：
 	//1.根据要保存的数据构建一个blockchain对象
 	//2.添加到数据库中
@@ -30,7 +30,7 @@ func (chain *BlockChain) AddBlockToBlockChain(data string) {
 			lastBlock := Deserialize(blockBytes)
 			lastBlockHeight := lastBlock.Height
 			//构造一个新的区块
-			newBlock := NewBlock(data, lastBlock.Hash, lastBlockHeight+1)
+			newBlock := NewBlock(txs, lastBlock.Hash, lastBlockHeight+1)
 			//存入到数据库中
 			err := bk.Put(newBlock.Hash, newBlock.Serialize())
 			if err != nil {
@@ -62,7 +62,24 @@ func (chain *BlockChain) PrintChains() {
 		fmt.Printf("\t高度:%d\n", block.Height)
 		fmt.Printf("\t上一个区块的hash:%x\n", block.PreBlockHash)
 		fmt.Printf("\t当前区块自己的Hash:%x\n", block.Hash)
-		fmt.Printf("\t区块的信息:%s\n", block.Data)
+		fmt.Printf("\t区块的信息:\n")
+
+		for _, tx := range block.Txs {
+
+			fmt.Printf("\t\t交易ID：%x\n", tx.TxID) //[]byte --> 0x...
+			fmt.Printf("\t\tVins:")
+			for _, in := range tx.Vins { //每一个TxInput：TxId,vout,解锁脚本
+				fmt.Printf("\t\t\tTxID：%x\n", in.TxID)
+				fmt.Printf("\t\t\tVout：%x\n", in.Vout)
+				fmt.Printf("\t\t\tScriptSiq：%x\n", in.ScriptSip)
+			}
+
+			fmt.Printf("\t\tVouts:")
+			for _, out := range tx.Vouts {
+				fmt.Printf("\t\t\tValue:%d\n", out.Value)
+				fmt.Printf("\t\t\tScriptPubKey:%s\n", out.ScriptPubKey)
+			}
+		}
 		fmt.Printf("\t随机数的值:%d\n", block.Nonce)
 		fmt.Printf("\t区块生产时间:%s\n", time.Unix(block.TimeStamp, 0).Format("2018-08-01 20:03"))
 
@@ -99,7 +116,9 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 		if bk != nil {
 			//读取数据库
 			bytes := bk.Get(chain.Tip)
+			lastBlock := Deserialize(bytes)
 
+			newBlock = NewBlock(txs, lastBlock.Hash, lastBlock.Height+1)
 		}
 		return nil
 	})
@@ -110,7 +129,7 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 }
 
 //create a blockchain,nclude genesis block
-func CreateBlockChainWithGenesisBlock(data string) *BlockChain {
+func CreateBlockChainWithGenesisBlock(address string) *BlockChain {
 	//1.创建创世区块
 	//2.创建区块链对象并返回
 
@@ -148,7 +167,10 @@ func CreateBlockChainWithGenesisBlock(data string) *BlockChain {
 	//2.创建创世区块
 	//3.存储到数据库中
 
-	genesisBlock := CreateGenesisBlock(data)
+	//创建一个txs-->CoinBase
+	txCoinBase := NewCoinBaseTransaction(address)
+
+	genesisBlock := CreateGenesisBlock([]*Transaction{txCoinBase})
 
 	db, err := bolt.Open(DBName, 0600, nil)
 	if err != nil {
@@ -179,6 +201,20 @@ func CreateBlockChainWithGenesisBlock(data string) *BlockChain {
 	}
 
 	return &BlockChain{db, genesisBlock.Hash}
+}
+
+//创建一个CoinBase交易
+func NewCoinBaseTransaction(address string) *Transaction {
+
+	txInput := &TxInput{[]byte{}, -1, "Gensis Data"}
+	txOutput := &TxOutput{10, address}
+
+	txCoinBaseTransaction := &Transaction{[]byte{}, []*TxInput{txInput}, []*TxOutput{txOutput}}
+	//设置交易ID
+	txCoinBaseTransaction.SetID()
+
+	return txCoinBaseTransaction
+
 }
 
 //判断区块链数据是否存在
