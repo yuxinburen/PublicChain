@@ -18,6 +18,8 @@ func (cli *CLI) Run() {
 
 	//处理参数及相关的命令对应的业务逻辑
 	//1.创建flagset命令对象
+	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
+	printWalletListCmd := flag.NewFlagSet("printwalletlist", flag.ExitOnError)
 	createBlockChainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	//addBlockCmd := flag.NewFlagSet("addblock", flag.ExitOnError)
 	sendBlockCmd := flag.NewFlagSet("send", flag.ExitOnError)
@@ -37,6 +39,10 @@ func (cli *CLI) Run() {
 	var err error
 	//解析用户的意图命令
 	switch os.Args[1] {
+	case "createwallet": //创建钱包
+		err = createWalletCmd.Parse(os.Args[2:])
+	case "printwalletlist":
+		err = printWalletListCmd.Parse(os.Args[2:])
 	case "createblockchain": //创建创世区块及区块链
 		err = createBlockChainCmd.Parse(os.Args[2:])
 	case "send": //转账功能参数解析
@@ -51,6 +57,16 @@ func (cli *CLI) Run() {
 	}
 	if err != nil {
 		log.Panic(err)
+	}
+
+	//创建钱包
+	if createWalletCmd.Parsed() {
+		cli.CreateWallet()
+	}
+
+	//打印系统中的钱包列表
+	if printWalletListCmd.Parsed() {
+		cli.PrintWalletList()
 	}
 
 	//根据用户在中断输入的命令执行对应的功能
@@ -117,6 +133,8 @@ func isValidArgs() {
 //打印程序用法说明
 func printUsage() {
 	fmt.Printf("Usage:\n")
+	fmt.Printf("\tcreatewallet --创建钱包\n")
+	fmt.Printf("\tprintwalletlist --打印输出系统的钱包列表\n")
 	fmt.Printf("\tcreateblockchain -data Data --创建创世区块\n")
 	fmt.Printf("\tsend -from from -to to -amount amount --转账给他人\n")
 	fmt.Printf("\tprintchain --打印所有区块\n")
@@ -179,4 +197,14 @@ func (cli *CLI) GetBalance(address string) {
 	defer blockChain.DB.Close()
 	totalBalance := blockChain.GetBalance(address)
 	fmt.Printf("账户%s的余额为:%d\n", address, totalBalance)
+}
+
+//创建一个新的钱包并返回打印钱包地址
+func (cli *CLI) CreateWallet() {
+
+}
+
+//打印输出系统中的钱包列表
+func (cli *CLI) PrintWalletList() {
+
 }
