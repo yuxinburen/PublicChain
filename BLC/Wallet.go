@@ -1,4 +1,4 @@
-package main
+package BLC
 
 import (
 	"crypto/ecdsa"
@@ -64,7 +64,6 @@ func PubKeyHash(publickKey []byte) []byte {
 	hashs := hasher2.Sum(nil)
 
 	return hashs
-
 }
 
 //创建钱包对象
@@ -90,5 +89,4 @@ func NewPaireKey() (ecdsa.PrivateKey, []byte) {
 	publicKey := append(privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
 	//返回私钥，公钥
 	return *privateKey, publicKey
-
 }

@@ -52,7 +52,7 @@ func (cli *CLI) Run() {
 	case "getbalance":
 		err = getBalanceCmd.Parse(os.Args[2:])
 	default:
-		printUsage()
+		PrintUsage()
 		os.Exit(1)
 	}
 	if err != nil {
@@ -72,7 +72,7 @@ func (cli *CLI) Run() {
 	//根据用户在中断输入的命令执行对应的功能
 	if createBlockChainCmd.Parsed() {
 		if *flagCreateBlockChainData == "" {
-			printUsage()
+			PrintUsage()
 			os.Exit(1)
 		}
 		cli.CreateBlockChain(*flagCreateBlockChainData)
@@ -95,7 +95,7 @@ func (cli *CLI) Run() {
 	if sendBlockCmd.Parsed() {
 		if *flagSendFromData == "" || *flagSendToData == "" || *flagSendAmountData == "" {
 			fmt.Printf("请指定转账参数\n")
-			printUsage()
+			PrintUsage()
 			os.Exit(1)
 		}
 
@@ -119,92 +119,12 @@ func (cli *CLI) Run() {
 		}
 		cli.GetBalance(*flagGetBalanceData)
 	}
-
 }
 
 //检查用户参数是否合法
 func isValidArgs() {
 	if len(os.Args) < 2 {
-		printUsage()
+		PrintUsage()
 		os.Exit(1)
 	}
-}
-
-//打印程序用法说明
-func printUsage() {
-	fmt.Printf("Usage:\n")
-	fmt.Printf("\tcreatewallet --创建钱包\n")
-	fmt.Printf("\tprintwalletlist --打印输出系统的钱包列表\n")
-	fmt.Printf("\tcreateblockchain -data Data --创建创世区块\n")
-	fmt.Printf("\tsend -from from -to to -amount amount --转账给他人\n")
-	fmt.Printf("\tprintchain --打印所有区块\n")
-	fmt.Printf("\tgetbalance -address Data --查询账户余额\n")
-}
-
-//创建区块链
-func (cli *CLI) CreateBlockChain(address string) {
-	//创建创世区块
-	CreateBlockChainWithGenesisBlock(address)
-}
-
-//打印出所有区块的信息
-func (cli *CLI) PrintChains() {
-	bc := GetBlockChainObject()
-	if bc == nil {
-		fmt.Printf("没有blockchain，无法打印任何区块数据\n")
-		os.Exit(1)
-	}
-	defer bc.DB.Close()
-	//调用bc的打印数据的方法
-	bc.PrintChains()
-}
-
-//执行转账交易的业务层方法
-func (cli *CLI) Send(fromArgs []string, toArgs []string, amountArgs []string) {
-
-	//思路:
-	//1.先拿到区块链对象
-	//2.如果区块链对象为nil,说明没有区块链，提示后直接结束运行
-	//3.如果区块蓝对象不为空,则执行转账交易
-	bc := GetBlockChainObject()
-	if bc == nil {
-		fmt.Printf("BlockChain未创建，无法实现转账\n")
-		os.Exit(0)
-	}
-	defer bc.DB.Close()
-	bc.Send(fromArgs, toArgs, amountArgs)
-}
-
-//添加新的区块数据到区块链中
-func (cli *CLI) AddBlockToBlockChain(txs []*Transaction) {
-	blockChain := GetBlockChainObject()
-	if blockChain == nil {
-		fmt.Printf("没有数据库,无法添加新的区块\t")
-		os.Exit(1)
-	}
-	defer blockChain.DB.Close()
-	blockChain.AddBlockToBlockChain(txs)
-}
-
-//查询账户地址的余额数据
-func (cli *CLI) GetBalance(address string) {
-
-	blockChain := GetBlockChainObject()
-	if blockChain == nil {
-		fmt.Printf("没有数据库，无法查询账户余额.请先创建区块链数据库.\n")
-		os.Exit(1)
-	}
-	defer blockChain.DB.Close()
-	totalBalance := blockChain.GetBalance(address)
-	fmt.Printf("账户%s的余额为:%d\n", address, totalBalance)
-}
-
-//创建一个新的钱包并返回打印钱包地址
-func (cli *CLI) CreateWallet() {
-
-}
-
-//打印输出系统中的钱包列表
-func (cli *CLI) PrintWalletList() {
-
 }
