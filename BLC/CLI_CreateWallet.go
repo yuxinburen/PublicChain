@@ -6,6 +6,5 @@ import "fmt"
 func (cli *CLI) CreateWallet() {
 	wallets := NewWallets()
 	wallets.CreateNewWallet()
-	fmt.Printf("钱包:", wallets.WalletMap)
+	fmt.Printf("钱包:\n", wallets.WalletMap)
 }
-

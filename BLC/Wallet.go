@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"log"
 	"crypto/sha256"
-	"fmt"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -37,7 +36,6 @@ func (wallet *Wallet) GetAddress() []byte {
 
 	//拼接全部数据
 	full_payload := append(version_payload, checkSumBytes...)
-	fmt.Printf("full_payload:", full_payload, ",len:", len(full_payload))
 
 	//Base58编码
 	address := Base58Encode(full_payload)

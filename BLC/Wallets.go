@@ -69,6 +69,8 @@ func (wallets *Wallets) saveFile() {
 
 	//1.object --> byte[]
 	var buf bytes.Buffer
+	//序列化的过程中:被序列化的对象中包含了接口，则接口需要注册
+	gob.Register(elliptic.P256())
 	encoder := gob.NewEncoder(&buf)
 	err := encoder.Encode(wallets)
 	if err != nil {
