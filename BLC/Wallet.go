@@ -6,8 +6,8 @@ import (
 	"crypto/rand"
 	"log"
 	"crypto/sha256"
-	"crypto"
 	"fmt"
+	"golang.org/x/crypto/ripemd160"
 )
 
 const version = byte(0x00)
@@ -59,7 +59,7 @@ func PubKeyHash(publickKey []byte) []byte {
 	hasher1 := hasher.Sum(nil)
 
 	//再一次sha256
-	hasher2 := crypto.RIPEMD160.New()
+	hasher2 := ripemd160.New()
 	hasher2.Write(hasher1)
 	hashs := hasher2.Sum(nil)
 
