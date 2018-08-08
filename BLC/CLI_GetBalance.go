@@ -13,6 +13,6 @@ func (cli *CLI) GetBalance(address string) {
 		os.Exit(1)
 	}
 	defer blockChain.DB.Close()
-	totalBalance := blockChain.GetBalance(address)
+	totalBalance := blockChain.GetBalance(address, []*Transaction{})
 	fmt.Printf("账户%s的余额为:%d\n", address, totalBalance)
 }

@@ -7,7 +7,6 @@ import (
 
 //执行转账交易的业务层方法
 func (cli *CLI) Send(fromArgs []string, toArgs []string, amountArgs []string) {
-
 	//思路:
 	//1.先拿到区块链对象
 	//2.如果区块链对象为nil,说明没有区块链，提示后直接结束运行

@@ -105,7 +105,7 @@ func (cli *CLI) Run() {
 		amount := JSONToArray(*flagSendAmountData)
 		cli.Send(from, to, amount)
 	}
-
+	
 	//根据用户在终端输入的命令：打印出所有区块蓝数据
 	if printChainCmd.Parsed() {
 		cli.PrintChains()

@@ -16,6 +16,29 @@ type BlockChain struct {
 	Tip []byte   //存储区块中最后一个块的hash值
 }
 
+//此方法用于找到所有可花费的输出交易
+func (chain *BlockChain) FindSpentableUTXOs(from, to string, amount int64, txs []*Transaction) (int64, map[string][]int) {
+	//思路
+	//1.根据from获取到所有的utxo
+	//2.遍历utxos,累加余额,判断,余额是否大于等于要转账的金额
+
+	//返回：map[txID] --> []int{下标1，下标2}-->Output
+	var total int64
+	spentableMap := make(map[string][]int)
+	//1.获取所有的utxo：
+	utxos := chain.UnSpent(from, txs)
+	//2.找即将使用的utxo:
+	for _, utxo := range utxos {
+		total += utxo.Output.Value
+		txIDstr := hex.EncodeToString(utxo.TxID)
+		spentableMap[txIDstr] = append(spentableMap[txIDstr], utxo.Index)
+		if total >= amount {
+			break
+		}
+	}
+	return 0, make(map[string][]int)
+}
+
 //打印区块数据
 func (chain *BlockChain) PrintChains() {
 	//打开数据库
@@ -67,15 +90,23 @@ func (chain *BlockChain) Iterator() *BlockChainIterator {
 
 //Model层的转账交易
 func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []string) {
-	//构建交易对象
-	//将交易构建到数据区块中
-	//将带有交易信息的数据保存到数据库中
+	//1.构建交易对象
+	//2.将交易构建到数据区块中
+	//3.将带有交易信息的数据保存到数据库中
 
 	//1.创建交易对象
 	var txs []*Transaction
-	amountInt, _ := strconv.ParseInt(amountArgs[0], 10, 64)
-	tx := NewSimpleTransaction(fromArgs[0], toArgs[0], amountInt)
-	txs = append(txs, tx)
+	//amountInt, _ := strconv.ParseInt(amountArgs[0], 10, 64)
+	//tx := NewSimpleTransaction(fromArgs[0], toArgs[0], amountInt)
+	//txs = append(txs, tx)
+
+	//for循环
+	for i := 0; i < len(txs); i++ {
+		//amount[0]-->int
+		amountInt, _ := strconv.ParseInt(amountArgs[i], 10, 64)
+		tx := NewSimpleTransaction(fromArgs[i], toArgs[i], amountInt, chain, txs)
+		txs = append(txs, tx)
+	}
 
 	//2.构造新的区块
 	newBlock := new(Block)
@@ -279,10 +310,10 @@ func (chain *BlockChain) AddBlockToBlockChain(txs []*Transaction) {
 }
 
 //根据用户输入的地址查询给定的地址账户的余额
-func (chain *BlockChain) GetBalance(address string) int64 {
+func (chain *BlockChain) GetBalance(address string, txs [] *Transaction) int64 {
 	fmt.Printf("查询账户余额功能...")
 
-	unSpentUTXOs := chain.UnSpent(address)
+	unSpentUTXOs := chain.UnSpent(address, txs)
 
 	var total int64
 	for _, utxo := range unSpentUTXOs {
@@ -291,8 +322,61 @@ func (chain *BlockChain) GetBalance(address string) int64 {
 	return total
 }
 
+//用于计算在一次还未入块的交易数据中的未花费的交易并进行返回
+func caculate(tx *Transaction, address string, spentTxOutputMap map[string][]int, unSpentUTXOs []*UTXO) []*UTXO {
+	//遍历每个tx：TxID,Vins,Vouts
+
+	//遍历所有的input
+	if !tx.IsCoinBaseTransaction() {
+		for _, input := range tx.Vins {
+			if input.UnlockWithAddress(address) {
+				//txInput的解锁脚本(用户名)如果和要查询的余额的用户名相同
+				key := hex.EncodeToString(input.TxID)
+				spentTxOutputMap[key] = append(spentTxOutputMap[key], input.Vout)
+				//map[key]-->value
+				//map[key]-->[]int
+			}
+		}
+	}
+
+	//遍历所有的out
+outputs:
+	for index, txOutput := range tx.Vouts { //index=0,txoutput.锁定脚本
+		if txOutput.UnlockWithAddress(address) { //根据地址判断是否是要查询的对应账户的
+			if len(spentTxOutputMap) != 0 {
+
+				var isSpentOutput bool //默认false，判断output是否被花了的标志
+
+				//遍历map
+				for txID, indexArray := range spentTxOutputMap {
+
+					//遍历已经记录花费的下标的数组
+					for _, i := range indexArray {
+
+						if i == index && hex.EncodeToString(tx.TxID) == txID {
+
+							isSpentOutput = true //标记当前的txOutput是已经花费的一笔输出
+							continue outputs
+						}
+					}
+				}
+
+				if !isSpentOutput {
+					//根据未花费的output，创建一个utxo对象,并添加到数组中
+					utxo := &UTXO{tx.TxID, index, txOutput}
+					unSpentUTXOs = append(unSpentUTXOs, utxo)
+				}
+			} else { //若数组长度为0，即证明暂时没有花费记录，output无需判断
+				utxo := &UTXO{tx.TxID, index, txOutput}
+				unSpentUTXOs = append(unSpentUTXOs, utxo)
+			}
+		}
+	}
+	return unSpentUTXOs
+}
+
 //计算指定账户未花费的交易输出，可能是多笔，所以是一个集合
-func (blockChain *BlockChain) UnSpent(address string) []*UTXO {
+func (blockChain *BlockChain) UnSpent(address string, txs []*Transaction) []*UTXO {
 	//思路:
 	//1.遍历数据库的每个block中的txs
 	//2.进而遍历每个交易
@@ -303,6 +387,11 @@ func (blockChain *BlockChain) UnSpent(address string) []*UTXO {
 	var unSpentUTXOs []*UTXO
 	//已经花费掉的信息存储容器
 	spentTxOutputMap := make(map[string][]int) //map[TxID] = []int{vout}
+
+	//1.首先： 先查询本次转账,已经产生来的Transaction
+	for i := len(txs) - 1; i >= 0; i-- {
+		unSpentUTXOs = caculate(txs[i], address, spentTxOutputMap, unSpentUTXOs)
+	}
 
 	iterator := blockChain.Iterator()
 
