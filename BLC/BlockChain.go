@@ -311,7 +311,7 @@ func (chain *BlockChain) AddBlockToBlockChain(txs []*Transaction) {
 
 //根据用户输入的地址查询给定的地址账户的余额
 func (chain *BlockChain) GetBalance(address string, txs [] *Transaction) int64 {
-	fmt.Printf("查询账户余额功能...")
+	fmt.Printf("查询账户余额功能...\n")
 
 	unSpentUTXOs := chain.UnSpent(address, txs)
 
@@ -393,6 +393,7 @@ func (blockChain *BlockChain) UnSpent(address string, txs []*Transaction) []*UTX
 		unSpentUTXOs = caculate(txs[i], address, spentTxOutputMap, unSpentUTXOs)
 	}
 
+	//2.第二部分是数据库里的Trasaction
 	iterator := blockChain.Iterator()
 
 	for {
