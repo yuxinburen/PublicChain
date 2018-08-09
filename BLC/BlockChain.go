@@ -17,7 +17,7 @@ type BlockChain struct {
 }
 
 //此方法用于找到所有可花费的输出交易
-func (chain *BlockChain) FindSpentableUTXOs(from, to string, amount int64, txs []*Transaction) (int64, map[string][]int) {
+func (chain *BlockChain) FindSpentableUTXOs(from string, amount int64, txs []*Transaction) (int64, map[string][]int) {
 	//思路
 	//1.根据from获取到所有的utxo
 	//2.遍历utxos,累加余额,判断,余额是否大于等于要转账的金额
@@ -36,7 +36,13 @@ func (chain *BlockChain) FindSpentableUTXOs(from, to string, amount int64, txs [
 			break
 		}
 	}
-	return 0, make(map[string][]int)
+
+	//3.判断钱是够花
+	if total < amount {
+		fmt.Printf("％s账户余额不足，无法完成转账.\n", from)
+		os.Exit(1)
+	}
+	return total, spentableMap
 }
 
 //打印区块数据
@@ -62,13 +68,13 @@ func (chain *BlockChain) PrintChains() {
 			for _, in := range tx.Vins { //每一个TxInput：TxId,vout,解锁脚本
 				fmt.Printf("\t\t\tTxID：%x\n", in.TxID)
 				fmt.Printf("\t\t\tVout：%x\n", in.Vout)
-				fmt.Printf("\t\t\tScriptSiq：%x\n", in.ScriptSip)
+				fmt.Printf("\t\t\tPublicKey：%x\n", in.PublicKey)
 			}
 
 			fmt.Printf("\t\tVouts:\n")
 			for _, out := range tx.Vouts {
 				fmt.Printf("\t\t\tValue:%d\n", out.Value)
-				fmt.Printf("\t\t\tScriptPubKey:%s\n", out.ScriptPubKey)
+				fmt.Printf("\t\t\tPubKeyHash:%s\n", out.PubKeyHash)
 			}
 		}
 		fmt.Printf("\t随机数的值:%d\n", block.Nonce)
@@ -101,7 +107,7 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 	//txs = append(txs, tx)
 
 	//for循环
-	for i := 0; i < len(txs); i++ {
+	for i := 0; i < len(fromArgs); i++ {
 		//amount[0]-->int
 		amountInt, _ := strconv.ParseInt(amountArgs[i], 10, 64)
 		tx := NewSimpleTransaction(fromArgs[i], toArgs[i], amountInt, chain, txs)
@@ -124,7 +130,7 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 		log.Panic(err)
 	}
 
-	//将构造的新区块保存到数据库中
+	//3.将构造的新区块保存到数据库中
 	err = chain.DB.Update(func(tx *bolt.Tx) error {
 		bk := tx.Bucket([]byte(BlockBucketName))
 		if bk != nil {
@@ -216,20 +222,6 @@ func CreateBlockChainWithGenesisBlock(address string) *BlockChain {
 	}
 
 	return &BlockChain{db, genesisBlock.Hash}
-}
-
-//创建一个CoinBase交易
-func NewCoinBaseTransaction(address string) *Transaction {
-
-	txInput := &TxInput{[]byte{}, -1, "Gensis Data"}
-	txOutput := &TxOutput{10, address}
-
-	txCoinBaseTransaction := &Transaction{[]byte{}, []*TxInput{txInput}, []*TxOutput{txOutput}}
-	//设置交易ID
-	txCoinBaseTransaction.SetID()
-
-	return txCoinBaseTransaction
-
 }
 
 //判断区块链数据是否存在
@@ -329,7 +321,9 @@ func caculate(tx *Transaction, address string, spentTxOutputMap map[string][]int
 	//遍历所有的input
 	if !tx.IsCoinBaseTransaction() {
 		for _, input := range tx.Vins {
-			if input.UnlockWithAddress(address) {
+			full_payload := Base58Encode([]byte(address))
+			pubKeyHash := full_payload[1 : len(full_payload)-addressCheckSumLen]
+			if input.UnlockWithAddress(pubKeyHash) {
 				//txInput的解锁脚本(用户名)如果和要查询的余额的用户名相同
 				key := hex.EncodeToString(input.TxID)
 				spentTxOutputMap[key] = append(spentTxOutputMap[key], input.Vout)
@@ -344,17 +338,12 @@ outputs:
 	for index, txOutput := range tx.Vouts { //index=0,txoutput.锁定脚本
 		if txOutput.UnlockWithAddress(address) { //根据地址判断是否是要查询的对应账户的
 			if len(spentTxOutputMap) != 0 {
-
 				var isSpentOutput bool //默认false，判断output是否被花了的标志
-
 				//遍历map
 				for txID, indexArray := range spentTxOutputMap {
-
 					//遍历已经记录花费的下标的数组
 					for _, i := range indexArray {
-
 						if i == index && hex.EncodeToString(tx.TxID) == txID {
-
 							isSpentOutput = true //标记当前的txOutput是已经花费的一笔输出
 							continue outputs
 						}
@@ -397,61 +386,66 @@ func (blockChain *BlockChain) UnSpent(address string, txs []*Transaction) []*UTX
 	iterator := blockChain.Iterator()
 
 	for {
-		//获取到每一块0
+		//1.获取到每一块0
 		block := iterator.Next()
 
-		//遍历block的交易信息
-		for _, tx := range block.Txs {
-
-			//遍历其中的一条tx：TxID，Vins，Vouts
-			//遍历所有的TxInput
-			if !tx.IsCoinBaseTransaction() { //tx不是CoinBase交易,遍历TxInput
-				for _, texInput := range tx.Vins {
-					//txInput-->TxInput
-					if texInput.UnlockWithAddress(address) {
-						//txInput的解锁脚本(用户名)如果和要查询的余额的用户名相同
-						key := hex.EncodeToString(tx.TxID)
-						spentTxOutputMap[key] = append(spentTxOutputMap[key], texInput.Vout)
-						/**
-						**map[key] --> value
-						**map[key] --> []int
-						 */
-					}
-				}
-			}
-
-		outputs:
-		//遍历所有的TxOutput
-			for index, txOutput := range tx.Vouts {
-				if txOutput.UnlockWithAddress(address) {
-					if len(spentTxOutputMap) != 0 {
-						var isSpentOutput bool //false
-						//遍历map
-						for txID, indexArray := range spentTxOutputMap {
-							//遍历 记录已经花费的下标的数组
-							for _, i := range indexArray {
-								if i == index && hex.EncodeToString(tx.TxID) == txID {
-									isSpentOutput = true //标记当前的txOutput是否已经花费
-									continue outputs
-								}
-							}
-						}
-
-						if !isSpentOutput {
-							//unSpentTxOutput == append(unSpentTxOutput, txOutput)
-							//根据未花费的output,创建utxo对象-->数组
-							utxo := &UTXO{tx.TxID, index, txOutput}
-							unSpentUTXOs = append(unSpentUTXOs, utxo)
-						}
-					} else {
-						//如果map长度为0,证明还没有花费记录,output无需判断
-						//unSpentTxOutput = append(unSpentTxOutput,txOutput)
-						utxo := &UTXO{tx.TxID, index, txOutput}
-						unSpentUTXOs = append(unSpentUTXOs, utxo)
-					}
-				}
-			}
+		//2.遍历block的交易信息(新版本的实现)
+		//倒叙遍历Transaction
+		for i := len(block.Txs) - 1; i >= 0; i-- {
+			unSpentUTXOs = caculate(block.Txs[i], address, spentTxOutputMap, unSpentUTXOs)
 		}
+
+		//2.遍历block的交易信息(之前的功能实现)
+		//for _, tx := range block.Txs {
+		//	//遍历其中的一条tx：TxID，Vins，Vouts
+		//	//遍历所有的TxInput
+		//	if !tx.IsCoinBaseTransaction() { //tx不是CoinBase交易,遍历TxInput
+		//		for _, texInput := range tx.Vins {
+		//			//txInput-->TxInput
+		//			if texInput.UnlockWithAddress(address) {
+		//				//txInput的解锁脚本(用户名)如果和要查询的余额的用户名相同
+		//				key := hex.EncodeToString(tx.TxID)
+		//				spentTxOutputMap[key] = append(spentTxOutputMap[key], texInput.Vout)
+		//				/**
+		//				**map[key] --> value
+		//				**map[key] --> []int
+		//				 */
+		//			}
+		//		}
+		//	}
+		//
+		//outputs:
+		////遍历所有的TxOutput
+		//	for index, txOutput := range tx.Vouts {
+		//		if txOutput.UnlockWithAddress(address) {
+		//			if len(spentTxOutputMap) != 0 {
+		//				var isSpentOutput bool //false
+		//				//遍历map
+		//				for txID, indexArray := range spentTxOutputMap {
+		//					//遍历 记录已经花费的下标的数组
+		//					for _, i := range indexArray {
+		//						if i == index && hex.EncodeToString(tx.TxID) == txID {
+		//							isSpentOutput = true //标记当前的txOutput是否已经花费
+		//							continue outputs
+		//						}
+		//					}
+		//				}
+		//
+		//				if !isSpentOutput {
+		//					//unSpentTxOutput == append(unSpentTxOutput, txOutput)
+		//					//根据未花费的output,创建utxo对象-->数组
+		//					utxo := &UTXO{tx.TxID, index, txOutput}
+		//					unSpentUTXOs = append(unSpentUTXOs, utxo)
+		//				}
+		//			} else {
+		//				//如果map长度为0,证明还没有花费记录,output无需判断
+		//				//unSpentTxOutput = append(unSpentTxOutput,txOutput)
+		//				utxo := &UTXO{tx.TxID, index, txOutput}
+		//				unSpentUTXOs = append(unSpentUTXOs, utxo)
+		//			}
+		//		}
+		//	}
+		//}
 
 		//3.判断退出
 		hashInt := new(big.Int)

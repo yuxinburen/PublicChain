@@ -7,6 +7,7 @@ import (
 	"log"
 	"crypto/sha256"
 	"golang.org/x/crypto/ripemd160"
+	"bytes"
 )
 
 const version = byte(0x00)
@@ -16,6 +17,27 @@ const addressCheckSumLen = 4
 type Wallet struct {
 	PrivateKey ecdsa.PrivateKey //私钥
 	Publickey  []byte           //公钥
+}
+
+//根据给定的地址,判断地址是否合法
+//判断地址是否合法的思路:
+//1.先将地址进行base58解码
+//2.截取checkSum
+//3.将剩余的部分进行两次hhash，然后截取4个字节，和第2步截取的进行比较
+//4.获取对你结果，一致说明合法，不一致则不合法
+func IsValidAddress(address []byte) bool {
+	//1.将地址进行base8解码
+	full_payload := Base58Decode(address) //25个字节
+	//2.获取地址中的CheckSum
+	checkSumBytes := full_payload[len(full_payload)-AddressCheckSumLen:]
+	//版本号和公钥哈希共同的数据内容
+	version_payload := full_payload[:len(full_payload)-AddressCheckSumLen]
+
+	//3.将第二步分离出来的数据进行两次sha256哈希计算
+	checkSumBytes2 := CheckSum(version_payload)
+
+	//4.将两个结果进行对比。获取对比结果
+	return bytes.Compare(checkSumBytes, checkSumBytes2) == 0
 }
 
 //获取得到钱包的地址
@@ -49,14 +71,14 @@ func CheckSum(payload []byte) []byte {
 	return secondHash[:addressCheckSumLen]
 }
 
-//sha256
-func PubKeyHash(publickKey []byte) []byte {
-
+//根据公钥获取公钥哈希
+func PubKeyHash(publicKey []byte) []byte {
+	//一次sha256
 	hasher := sha256.New()
-	hasher.Write(publickKey)
+	hasher.Write(publicKey)
 	hasher1 := hasher.Sum(nil)
 
-	//再一次sha256
+	//再一次160
 	hasher2 := ripemd160.New()
 	hasher2.Write(hasher1)
 	hashs := hasher2.Sum(nil)

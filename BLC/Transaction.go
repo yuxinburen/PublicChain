@@ -29,6 +29,19 @@ func (transaction *Transaction) SetID() {
 	transaction.TxID = hash[:]
 }
 
+//创建一个CoinBase交易
+func NewCoinBaseTransaction(address string) *Transaction {
+	txInput := &TxInput{[]byte{}, -1, nil, nil}
+	//txOutput := &TxOutput{10, address}
+	txOutput := NewTxOutput(10, address)
+
+	txCoinBaseTransaction := &Transaction{[]byte{}, []*TxInput{txInput}, []*TxOutput{txOutput}}
+	//设置交易ID
+	txCoinBaseTransaction.SetID()
+
+	return txCoinBaseTransaction
+}
+
 //创建一个单笔交易
 func NewSimpleTransaction(from, to string, amount int64, chain *BlockChain, txs []*Transaction) *Transaction {
 
@@ -44,11 +57,16 @@ func NewSimpleTransaction(from, to string, amount int64, chain *BlockChain, txs 
  	*TxID应该是自动寻找创建的
 	 */
 	//首先获取此次转账需要用到的output
-	total, spentableUTXO := chain.FindSpentableUTXOs(from, to, amount, txs) //map[TxID] --> []int{index}的形式
+	total, spentableUTXO := chain.FindSpentableUTXOs(from, amount, txs) //map[TxID] --> []int{index}的形式
+
+	//获取钱包集合
+	wallets := NewWallets()
+	wallet := wallets.WalletMap[from]
+
 	for txID, indexArray := range spentableUTXO {
 		txIDBytes, _ := hex.DecodeString(txID)
 		for _, index := range indexArray {
-			txInput := &TxInput{txIDBytes, index, from}
+			txInput := &TxInput{txIDBytes, index, nil, wallet.Publickey}
 			txInputs = append(txInputs, txInput)
 		}
 	}
@@ -58,11 +76,13 @@ func NewSimpleTransaction(from, to string, amount int64, chain *BlockChain, txs 
 	//txInputs = append(txInputs, txInput)
 
 	//3.创建out
-	txOutput := &TxOutput{amount, to}
+	//txOutput := &TxOutput{amount, to}
+	txOutput := NewTxOutput(amount, to)
 	txOutputs = append(txOutputs, txOutput)
 
 	//找零
-	txOutput2 := &TxOutput{total - amount, from}
+	//txOutput2 := &TxOutput{total - amount, from}
+	txOutput2 := NewTxOutput(total-amount, from)
 	txOutputs = append(txOutputs, txOutput2)
 
 	//创建交易

@@ -27,7 +27,7 @@ func (cli *CLI) Run() {
 	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 
 	//2.设置命令后的参数对象
-	flagCreateBlockChainData := createBlockChainCmd.String("data", "GensisisBlock", "创世区块的信息")
+	flagCreateBlockChainData := createBlockChainCmd.String("address", "GensisisBlock", "创世区块的信息")
 	//flagAddBlockData := addBlockCmd.String("data", "helloworld", "区块的数据")
 	//send 的参数对象
 	flagSendFromData := sendBlockCmd.String("from", "", "转账源地址")
@@ -103,9 +103,18 @@ func (cli *CLI) Run() {
 		from := JSONToArray(*flagSendFromData) //[]string 有可能设计到多个转账
 		to := JSONToArray(*flagSendToData)
 		amount := JSONToArray(*flagSendAmountData)
+
+		//检测地址合法性
+		for i := 0; i < len(from); i++ {
+			if !IsValidAddress([]byte(from[i])) || !IsValidAddress([]byte(from[i])) {
+				fmt.Println("地址无效,请核对后重试.")
+				PrintUsage()
+				os.Exit(1)
+			}
+		}
 		cli.Send(from, to, amount)
 	}
-	
+
 	//根据用户在终端输入的命令：打印出所有区块蓝数据
 	if printChainCmd.Parsed() {
 		cli.PrintChains()
