@@ -9,11 +9,25 @@ import (
 	"math/big"
 	"strconv"
 	"encoding/hex"
+	"crypto/ecdsa"
+	"bytes"
 )
 
 type BlockChain struct {
 	DB  *bolt.DB //对应的数据库对象
 	Tip []byte   //存储区块中最后一个块的hash值
+}
+
+//对一笔交易的签名进行签名验证，将验签结果返回
+func (chain *BlockChain) VertifyTransaction(tx *Transaction) bool {
+	//验证交易的数字签名思路:  私钥＋数据(tx的副本+之前的交易)
+	prevTxs := make(map[string]*Transaction)
+	for _, input := range tx.Vins {
+		prevTx := chain.FindTransactionByTxID(input.TxID)
+		prevTxs[hex.EncodeToString(input.TxID)] = prevTx
+	}
+	//验证获得结果
+	return tx.Vertify(prevTxs)
 }
 
 //此方法用于找到所有可花费的输出交易
@@ -68,6 +82,7 @@ func (chain *BlockChain) PrintChains() {
 			for _, in := range tx.Vins { //每一个TxInput：TxId,vout,解锁脚本
 				fmt.Printf("\t\t\tTxID：%x\n", in.TxID)
 				fmt.Printf("\t\t\tVout：%x\n", in.Vout)
+				fmt.Printf("\t\t\tSign：%x\n", in.Signature)
 				fmt.Printf("\t\t\tPublicKey：%x\n", in.PublicKey)
 			}
 
@@ -78,7 +93,7 @@ func (chain *BlockChain) PrintChains() {
 			}
 		}
 		fmt.Printf("\t随机数的值:%d\n", block.Nonce)
-		fmt.Printf("\t区块生产时间:%s\n", time.Unix(block.TimeStamp, 0).Format("2018-08-01 20:03"))
+		fmt.Printf("\t区块生产时间:%s\n", time.Unix(block.TimeStamp, 0).Format("2018-08-01 20:03:01"))
 
 		//step2.判断是否到了iterator的末尾，即创世区块，如果到了创世区块，则结束循环
 		hashInt := new(big.Int)
@@ -112,6 +127,13 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 		amountInt, _ := strconv.ParseInt(amountArgs[i], 10, 64)
 		tx := NewSimpleTransaction(fromArgs[i], toArgs[i], amountInt, chain, txs)
 		txs = append(txs, tx)
+	}
+
+	//1.5 交易签名的验证，验证通过后才能写入区块并保存进数据库
+	for _, tx := range txs {
+		if chain.VertifyTransaction(tx) == false {
+			log.Panic("数字签名验证失败，未通过验签，请核对后重试")
+		}
 	}
 
 	//2.构造新的区块
@@ -456,4 +478,45 @@ func (blockChain *BlockChain) UnSpent(address string, txs []*Transaction) []*UTX
 	}
 
 	return unSpentUTXOs
+}
+
+//由区块链对新创建的交易进行签名
+func (chain *BlockChain) SignTransaction(transaction *Transaction, key ecdsa.PrivateKey) {
+	//1.先判断是否是coinbase交易，coinbse交易不需要签名
+	if transaction.IsCoinBaseTransaction() {
+		//fmt.Printf("Coinbase交易不需要进行签名,coinbse交易是系统的奖励")
+		return
+	}
+
+	//2.获取该tx中的Input,引用之前的transaction中的未花费的output.
+	prevTxs := make(map[string]*Transaction)
+	for _, input := range transaction.Vins {
+		txIDStr := hex.EncodeToString(input.TxID)
+		prevTxs[txIDStr] = chain.FindTransactionByTxID(input.TxID)
+	}
+
+	//3.签名
+	transaction.Sign(key, prevTxs)
+}
+
+//根据交易的txID获取整个交易
+func (chain *BlockChain) FindTransactionByTxID(txID []byte) *Transaction {
+	//总体思路：拿到db对象；遍历数据库，拿到每一个block，反序列化，用txID进行对比，符合条件返回对象
+	iterator := chain.Iterator()
+	for {
+		block := iterator.Next()
+		for _, tx := range block.Txs {
+			if bytes.Compare(tx.TxID, txID) == 0 {
+				return tx
+			}
+		}
+
+		//遍历到preHash为0时，代表循环到头，循环退出
+		bigInt := new(big.Int)
+		bigInt.SetBytes(block.PreBlockHash)
+		if big.NewInt(0).Cmp(bigInt) == 0 {
+			break
+		}
+	}
+	return nil
 }
