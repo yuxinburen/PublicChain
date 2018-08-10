@@ -25,6 +25,7 @@ func (cli *CLI) Run() {
 	sendBlockCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
+	getUnutxosCmd := flag.NewFlagSet("getunutxos", flag.ExitOnError)
 
 	//2.设置命令后的参数对象
 	flagCreateBlockChainData := createBlockChainCmd.String("address", "GensisisBlock", "创世区块的信息")
@@ -51,6 +52,8 @@ func (cli *CLI) Run() {
 		err = printChainCmd.Parse(os.Args[2:])
 	case "getbalance":
 		err = getBalanceCmd.Parse(os.Args[2:])
+	case "getunutxos":
+		err = getUnutxosCmd.Parse(os.Args[2:])
 	default:
 		PrintUsage()
 		os.Exit(1)
@@ -127,6 +130,11 @@ func (cli *CLI) Run() {
 			os.Exit(1)
 		}
 		cli.GetBalance(*flagGetBalanceData)
+	}
+
+	//所有未花费的交易输出集合
+	if getUnutxosCmd.Parsed() {
+		cli.GetUnuntxos()
 	}
 }
 

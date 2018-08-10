@@ -5,3 +5,4 @@ const BlockBucketName = "blocks" //存储key－value的相当于表的名称
 const WalletFileName = "walletFile.dat"
 const Wallet_version = byte(0x00)
 const AddressCheckSumLen = 4
+const UtxoSettable = "utxoset" //用于存储blockchain中所有的未花费的utxo

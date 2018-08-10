@@ -18,6 +18,81 @@ type BlockChain struct {
 	Tip []byte   //存储区块中最后一个块的hash值
 }
 
+//功能：查询所有的未花费的utxo
+//map[]形式
+//key：txID
+//value:TxOutputs utxo --> []*utxo -->
+func (chain *BlockChain) FindUnspentUTXOMap() map[string]*TxOutputs {
+	//思路：遍历每个block，txs里的未花费的output
+	iterator := chain.Iterator()
+
+	//创建一个map,存储已经花费的input-->output
+	spentedMap := make(map[string][]*TxInput)
+
+	//创建一个map,存储未花费的utxo
+	unspentUTXOsMap := make(map[string]*TxOutputs)
+
+	for {
+		block := iterator.Next()
+
+		for i := 0; i < len(block.Txs); i++ {
+			tx := block.Txs[i]
+			txOutputs := &TxOutputs{[]*UTXO{}}
+
+			//step1: 遍历tx的Inputs,存入到spentedMap
+			if !tx.IsCoinBaseTransaction() {
+				//获取每个input,存入到spentedMap
+				for _, input := range tx.Vins {
+					key := hex.EncodeToString(input.TxID)
+					spentedMap[key] = append(spentedMap[key], input)
+				}
+			}
+
+			txIDstr := hex.EncodeToString(tx.TxID)
+
+			//2.遍历该tx的output
+		outputLoop:
+			for index, output := range tx.Vouts {
+				inputs := spentedMap[txIDstr] //已经花费的input
+
+				if len(spentedMap) > 0 {
+					isSpent := false
+					for _, input := range inputs {
+						inputPubKeyHash := PubKeyHash(input.PublicKey)
+						if bytes.Compare(inputPubKeyHash, output.PubKeyHash) == 0 {
+							isSpent = true
+							continue outputLoop
+						}
+					}
+
+					if !isSpent {
+						utxo := &UTXO{tx.TxID, index, output}
+						txOutputs.UTXOs = append(txOutputs.UTXOs, utxo)
+					}
+				} else {
+					//获取output－－> utxo-->存入到txoutputs
+					utxo := &UTXO{tx.TxID, index, output}
+					txOutputs.UTXOs = append(txOutputs.UTXOs, utxo)
+				}
+			}
+
+			//将当前的这个tx中，未花费txOutputs,存入到未花费map中
+			if len(txOutputs.UTXOs) > 0 {
+				unspentUTXOsMap[txIDstr] = txOutputs
+			}
+		}
+
+		//结束for循环
+		bigInt := new(big.Int)
+		bigInt.SetBytes(block.PreBlockHash)
+
+		if big.NewInt(0).Cmp(bigInt) == 0 {
+			break
+		}
+	}
+	return unspentUTXOsMap
+}
+
 //对一笔交易的签名进行签名验证，将验签结果返回
 func (chain *BlockChain) VertifyTransaction(tx *Transaction) bool {
 	//验证交易的数字签名思路:  私钥＋数据(tx的副本+之前的交易)
@@ -135,6 +210,10 @@ func (chain *BlockChain) Send(fromArgs []string, toArgs []string, amountArgs []s
 			log.Panic("数字签名验证失败，未通过验签，请核对后重试")
 		}
 	}
+
+	//给coinbase进行奖励
+	coinBaseTransaction := NewCoinBaseTransaction(fromArgs[0])
+	txs = append(txs, coinBaseTransaction)
 
 	//2.构造新的区块
 	newBlock := new(Block)

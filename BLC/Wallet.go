@@ -96,6 +96,21 @@ func NewWallet() *Wallet {
 	return wallet
 }
 
+func GetAddressByPubKeyHash(pubKeyHash []byte) []byte {
+	//step2：添加版本号：
+	versioned_payload := append([]byte{version}, pubKeyHash...)
+
+	//step3：根据versioned_payload-->两次sha256,取前4位，得到checkSum
+	checkSumBytes := CheckSum(versioned_payload)
+
+	//step4：拼接全部数据
+	full_payload := append(versioned_payload, checkSumBytes...)
+	//fmt.Println("full_payload:", full_payload, ",len:", len(full_payload))
+	//step5：Base58编码
+	address := Base58Encode(full_payload)
+	return address
+}
+
 func NewPaireKey() (ecdsa.PrivateKey, []byte) {
 
 	curve := elliptic.P256() //生成一个椭圆
