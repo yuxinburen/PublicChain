@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"math/big"
+	"crypto/rand"
 )
 
 //转账交易中的交易对象
@@ -16,6 +18,24 @@ type Transaction struct {
 	//交易的输入方
 	Vins  []*TxInput
 	Vouts []*TxOutput //输出方，找零
+}
+
+func (tx *Transaction) NewTxID() []byte {
+	txCopy := tx
+	txCopy.TxID = []byte{}
+	hash := sha256.Sum256(txCopy.Serialize())
+	return hash[:]
+}
+
+//tx的序列化
+func (tx *Transaction) Serialize() []byte {
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+	err := encoder.Encode(tx)
+	if err != nil {
+		log.Panic(err)
+	}
+	return buf.Bytes()
 }
 
 //验证签名的方法
@@ -47,8 +67,36 @@ func (tx *Transaction) Vertify(prevTxs map[string]*Transaction) bool {
 		 *第三，四个参数；签名：R，S
 		 */
 
-	}
+		//获取要签名的数据
+		prevTx := prevTxs[hex.EncodeToString(input.TxID)]
+		txCopy.Vins[index].Signature = nil
+		txCopy.Vins[index].PublicKey = prevTx.Vouts[input.Vout].PubKeyHash
+		txCopy.TxID = txCopy.NewTxID() //要签名的数据
 
+		txCopy.Vins[index].PublicKey = nil
+
+		//曲线:x ,y
+		x := big.Int{}
+		y := big.Int{}
+		keyLen := len(input.PublicKey)
+		x.SetBytes(input.PublicKey[:keyLen/2])
+		y.SetBytes(input.PublicKey[keyLen/2:])
+
+		rawPublicKey := ecdsa.PublicKey{curev, &x, &y}
+
+		//获取签名
+		r := big.Int{}
+		s := big.Int{}
+
+		signLen := len(input.Signature)
+		r.SetBytes(input.Signature[:signLen/2])
+		s.SetBytes(input.Signature[signLen/2:])
+
+		if !ecdsa.Verify(&rawPublicKey, txCopy.TxID, &r, &s) {
+			return false
+		}
+	}
+	return true
 }
 
 //根据tx,生成一个hash
@@ -80,6 +128,25 @@ func (transaction *Transaction) Sign(privateKey ecdsa.PrivateKey, prevTxsmap map
 
 	//即将进行签名：私钥，要签名的数据
 	txCopy := transaction.TrimmedCopy()
+
+	for index, input := range txCopy.Vins {
+		prevTx := prevTxsmap[hex.EncodeToString(input.TxID)]
+
+		txCopy.Vins[index].Signature = nil
+		txCopy.Vins[index].PublicKey = prevTx.Vouts[input.Vout].PubKeyHash
+
+		txCopy.TxID = txCopy.NewTxID() //产生要签名的数据
+
+		//为了方便下一个input,将数据再置为空
+		txCopy.Vins[index].PublicKey = nil
+
+		r, s, err := ecdsa.Sign(rand.Reader, &privateKey, txCopy.TxID)
+		if err != nil {
+			log.Panic(err)
+		}
+		sign := append(r.Bytes(), s.Bytes()...)
+		transaction.Vins[index].Signature = sign
+	}
 }
 
 //创建一个CoinBase交易
