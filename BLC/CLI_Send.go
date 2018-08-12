@@ -18,4 +18,8 @@ func (cli *CLI) Send(fromArgs []string, toArgs []string, amountArgs []string) {
 	}
 	defer bc.DB.Close()
 	bc.Send(fromArgs, toArgs, amountArgs)
+	//添加更新
+	utxoSet := &UTXOSet{bc}
+	utxoSet.Update()
+
 }

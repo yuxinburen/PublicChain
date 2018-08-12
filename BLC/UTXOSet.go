@@ -44,5 +44,16 @@ func (utxoset *UTXOSet) ResetUTXOSet() {
 	if err != nil {
 		log.Panic(err)
 	}
+}
+
+//更新utxoSet数据表中的数据
+//思路：
+//每次转账后，更新UTXOSet
+//转账产生了新的区块:
+//交易：Input:引用之前的output
+//	   Output：
+//step1:删除本次交易产生的input对应的utxo
+//step2:添加本次交易产生的新utxo
+func (utxoSet *UTXOSet) Update() {
 
 }
